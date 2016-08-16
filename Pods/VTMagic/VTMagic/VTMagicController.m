@@ -15,8 +15,10 @@
 
 @implementation VTMagicController
 
+#pragma mark - Lifecycle
 - (id)initWithNibName:(NSString *)nibNameOrNil bundle:(NSBundle *)nibBundleOrNil
 {
+    // 通过xib加载
     self = [super initWithNibName:nibNameOrNil bundle:nibBundleOrNil];
     if (self) {
         if ([self respondsToSelector:@selector(edgesForExtendedLayout)]) {
@@ -31,28 +33,41 @@
 - (void)loadView
 {
     [super loadView];
+    
+    // 把view设置为magicView
     self.view = self.magicView;
 }
 
-- (VTMagicView *)magicView
+- (void)viewWillAppear:(BOOL)animated
 {
-    if (!_magicView) {
-        _magicView = [[VTMagicView alloc] initWithFrame:[UIScreen mainScreen].bounds];
-        _magicView.autoresizesSubviews = YES;
-        _magicView.magicController = self;
-        _magicView.delegate = self;
-        _magicView.dataSource = self;
-        [self.view setNeedsLayout];
-    }
-    return _magicView;
+    [super viewWillAppear:animated];
+    
+    _appearanceState = VTAppearanceStateWillAppear;
+    [_currentViewController beginAppearanceTransition:YES animated:animated];
 }
 
-- (void)viewDidLoad
+- (void)viewDidAppear:(BOOL)animated
 {
-    [super viewDidLoad];
+    [super viewDidAppear:animated];
+    
+    _appearanceState = VTAppearanceStateDidAppear;
+    [_currentViewController endAppearanceTransition];
+}
 
-    // 刷新数据
-//    [_magicView reloadData];
+- (void)viewWillDisappear:(BOOL)animated
+{
+    [super viewWillDisappear:animated];
+    
+    _appearanceState = VTAppearanceStateWillDisappear;
+    [_currentViewController beginAppearanceTransition:NO animated:animated];
+}
+
+- (void)viewDidDisappear:(BOOL)animated
+{
+    [super viewDidDisappear:animated];
+    
+    _appearanceState = VTAppearanceStateDidDisappear;
+    [_currentViewController endAppearanceTransition];
 }
 
 #pragma mark - 禁止自动触发appearance methods
@@ -89,14 +104,14 @@
 }
 
 #pragma mark - VTMagicViewDelegate
-- (void)magicView:(VTMagicView *)magicView viewDidAppeare:(UIViewController *)viewController atPage:(NSUInteger)pageIndex
+- (void)magicView:(VTMagicView *)magicView viewDidAppear:(__kindof UIViewController *)viewController atPage:(NSUInteger)pageIndex
 {
-    VTLog(@"index:%ld viewControllerDidAppeare:%@", (long)pageIndex, viewController.view);
+    VTLog(@"index:%ld viewControllerDidAppear:%@", (long)pageIndex, viewController.view);
 }
 
-- (void)magicView:(VTMagicView *)magicView viewDidDisappeare:(UIViewController *)viewController atPage:(NSUInteger)pageIndex
+- (void)magicView:(VTMagicView *)magicView viewDidDisappear:(__kindof UIViewController *)viewController atPage:(NSUInteger)pageIndex
 {
-    VTLog(@"index:%ld viewControllerDidDisappeare:%@", (long)pageIndex, viewController.view);
+    VTLog(@"index:%ld viewControllerDidDisappear:%@", (long)pageIndex, viewController.view);
 }
 
 - (void)magicView:(VTMagicView *)magicView didSelectItemAtIndex:(NSUInteger)itemIndex
@@ -105,6 +120,23 @@
 }
 
 #pragma mark - accessor methods
+- (VTMagicView *)magicView
+{
+    if (!_magicView) {
+        _magicView = [[VTMagicView alloc] initWithFrame:[UIScreen mainScreen].bounds];
+        _magicView.autoresizesSubviews = YES;
+        _magicView.magicController = self;
+        
+        // 交给调用者了，代理和数据
+        _magicView.delegate = self;
+        _magicView.dataSource = self;
+        
+        
+        [self.view setNeedsLayout];
+    }
+    return _magicView;
+}
+
 - (NSArray<UIViewController *> *)viewControllers
 {
     return self.magicView.viewControllers;

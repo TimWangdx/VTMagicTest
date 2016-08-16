@@ -44,7 +44,12 @@
 @property (nonatomic, assign) NSUInteger currentPage;
 
 /**
- *  屏幕上可见的控制器
+ *  是否需要预加载下一页，默认YES
+ */
+@property (nonatomic, assign) BOOL needPreloading;
+
+/**
+ *  当前屏幕上已加载的控制器
  */
 @property (nonatomic, strong, readonly) NSArray *visibleList;
 
@@ -58,6 +63,21 @@
  *  重置所有内容页的frame
  */
 - (void)resetPageFrames;
+
+/**
+ *  清除所有缓存的页面
+ */
+- (void)clearMemoryCache;
+
+/**
+ *  根据控制器获取对应的页面索引，仅当前显示的和预加载的控制器有相应索引，
+ *  若没有找到相应索引则返回NSNotFound
+ *
+ *  @param viewController 页面控制器
+ *
+ *  @return 页面索引
+ */
+- (NSInteger)pageIndexForViewController:(UIViewController *)viewController;
 
 /**
  *  获取索引对应的ViewController

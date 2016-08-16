@@ -15,7 +15,7 @@
 /****************************************data source****************************************/
 @protocol VTMagicViewDataSource <NSObject>
 /**
- *  获取所有分类名，数组中存放字符串类型对象
+ *  获取所有菜单名，数组中存放字符串类型对象
  *
  *  @param magicView self
  *
@@ -56,7 +56,7 @@
  *  @param viewController 当前页面展示的控制器
  *  @param index          当前控控制器对应的索引
  */
-- (void)magicView:(VTMagicView *)magicView viewDidAppeare:(UIViewController *)viewController atPage:(NSUInteger)pageIndex;
+- (void)magicView:(VTMagicView *)magicView viewDidAppear:(__kindof UIViewController *)viewController atPage:(NSUInteger)pageIndex;
 
 /**
  *  视图控制器从屏幕上消失时触发
@@ -65,13 +65,13 @@
  *  @param viewController 消失的视图控制器
  *  @param index          当前控制器对应的索引
  */
-- (void)magicView:(VTMagicView *)magicView viewDidDisappeare:(UIViewController *)viewController atPage:(NSUInteger)pageIndex;
+- (void)magicView:(VTMagicView *)magicView viewDidDisappear:(__kindof UIViewController *)viewController atPage:(NSUInteger)pageIndex;
 
 /**
  *  选中导航菜单item时触发
  *
  *  @param magicView self
- *  @param itemIndex 分类索引
+ *  @param itemIndex menuItem索引
  */
 - (void)magicView:(VTMagicView *)magicView didSelectItemAtIndex:(NSUInteger)itemIndex;
 
@@ -121,6 +121,7 @@
  */
 @property (nonatomic, assign) NSUInteger previewItems;
 
+
 #pragma mark - subviews
 /****************************************subviews****************************************/
 
@@ -146,9 +147,20 @@
 @property (nonatomic, strong) UIView *rightNavigatoinItem;
 
 /**
- *  屏幕上可见的控制器
+ *  当前屏幕上已加载的控制器
  */
 @property (nonatomic, strong, readonly) NSArray<__kindof UIViewController *> *viewControllers;
+
+/**
+ *  自定义滑块视图
+ */
+- (void)setSliderView:(UIView *)sliderView;
+
+/**
+ *  自定义导航分割线视图
+ */
+- (void)setSeparatorView:(UIView *)separatorView;
+
 
 #pragma mark - bool configurations
 /****************************************bool configurations****************************************/
@@ -207,6 +219,13 @@
 - (void)setHeaderHidden:(BOOL)headerHidden duration:(CGFloat)duration;
 
 /**
+ *  是否需要预加载下一页，默认YES，
+ *  若为NO，则点击导航菜单和调用switchToPage:animated:方法切换页面时均无动画，
+ *  其切换效果与属性switchAnimated为NO时相同
+ */
+@property (nonatomic, assign) BOOL needPreloading;
+
+/**
  *  页面滑到两侧边缘时是否需要反弹效果，默认NO
  */
 @property (nonatomic, assign) BOOL bounces;
@@ -214,7 +233,8 @@
 /**
  *  底部是否需要扩展一个tabbar的高度，设置毛玻璃效果时或许有用，默认NO
  */
-@property (nonatomic, assign) BOOL needExtendedBottom;
+@property (nonatomic, assign) BOOL needExtendBottom;
+
 
 #pragma mark - color & size configurations
 /**************************************color & size**************************************/
@@ -298,7 +318,7 @@
 
 /**
  *  两个导航菜单item文本之间的间距，默认是25
- *  如果分类item包含图片，则实际间距可能会更小
+ *  如果菜单item包含图片，则实际间距可能会更小
  *
  *  @warning 该属性仅VTLayoutStyleDefault和VTLayoutStyleCenter样式下有效！
  */
@@ -317,6 +337,7 @@
  */
 @property (nonatomic, assign) CGFloat itemWidth;
 
+
 #pragma mark - other properties
 /**************************************other properties**************************************/
 
@@ -325,6 +346,7 @@
  */
 @property (nonatomic, assign, readonly) VTSwitchEvent switchEvent;
 
+
 #pragma mark - public method
 /**************************************public method**************************************/
 
@@ -332,6 +354,20 @@
  *  重新加载所有数据
  */
 - (void)reloadData;
+
+/**
+ *  重新加载所有数据，同时定位到指定页面，若page越界，则自动修正为0
+ *
+ *  @param page 被定位的页面
+ */
+- (void)reloadDataToPage:(NSUInteger)page;
+
+/**
+ *  更新菜单标题，但不重新加载页面
+ *  仅限于菜单顺序和页数不改变的情况下
+ *  一般情况下建议使用reloadData方法
+ */
+- (void)reloadMenuTitles;
 
 /**
  *  查询可重用menuItem
@@ -350,6 +386,16 @@
  *  @return 可重用的UIViewController
  */
 - (__kindof UIViewController *)dequeueReusablePageWithIdentifier:(NSString *)identifier;
+
+/**
+ *  根据控制器获取对应的页面索引，仅当前显示的和预加载的控制器有相应索引，
+ *  若没有找到相应索引则返回NSNotFound
+ *
+ *  @param viewController 页面控制器
+ *
+ *  @return 页面索引
+ */
+- (NSInteger)pageIndexForViewController:(UIViewController *)viewController;
 
 /**
  *  获取索引对应的ViewController
@@ -386,13 +432,6 @@
 - (void)handlePanGesture:(UIPanGestureRecognizer *)recognizer;
 
 /**
- *  更新菜单标题，但不重新加载页面
- *  仅限于分类顺序和页数不改变的情况下
- *  一般情况下建议使用reloadData方法
- */
-- (void)updateMenuTitles;
-
-/**
  *  取消菜单item的选中状态，可通过属性deselected获取当前状态
  *  取消选中后须调用方法reSelectMenuItem以恢复
  */
@@ -402,5 +441,10 @@
  *  恢复菜单menuItem的选中状态
  */
 - (void)reselectMenuItem;
+
+/**
+ *  清除所有缓存的页面
+ */
+- (void)clearMemoryCache;
 
 @end

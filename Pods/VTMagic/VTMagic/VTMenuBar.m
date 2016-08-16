@@ -18,7 +18,6 @@ static NSInteger const kVTMenuBarTag = 1000;
 @property (nonatomic, strong) NSMutableArray *sliderList;   // slider frames
 @property (nonatomic, strong) NSMutableDictionary *visibleDict; // 屏幕上可见的items
 @property (nonatomic, strong) NSMutableSet *cacheSet; // 缓存池
-@property (nonatomic, strong) NSMutableDictionary *cacheDict; // 缓存池
 @property (nonatomic, strong) NSString *identifier; // 重用标识符
 @property (nonatomic, strong) NSMutableArray *indexList; // 索引集合
 @property (nonatomic, strong) UIFont *itemFont;
@@ -335,7 +334,7 @@ static NSInteger const kVTMenuBarTag = 1000;
 - (UIButton *)loadItemAtIndex:(NSInteger)index
 {
     UIButton *menuItem = [_datasource menuBar:self menuItemAtIndex:index];
-    NSAssert([menuItem isKindOfClass:[UIButton class]], @"item:%@ must be a kind of UIButton", menuItem);
+    NSAssert([menuItem isKindOfClass:[UIButton class]], @"The class of menu item:%@ must be UIButton", menuItem);
     if (menuItem) {
         [menuItem addTarget:self action:@selector(menuItemClick:) forControlEvents:UIControlEventTouchUpInside];
         menuItem.titleLabel.layer.transform = CATransform3DIdentity;

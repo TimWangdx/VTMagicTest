@@ -17,8 +17,8 @@ typedef struct {
     unsigned int dataSourceMenuItem : 1;
     unsigned int dataSourceMenuTitles : 1;
     unsigned int dataSourceViewController : 1;
-    unsigned int viewControllerDidAppeare : 1;
-    unsigned int viewControllerDidDisappeare : 1;
+    unsigned int viewControllerDidAppear : 1;
+    unsigned int viewControllerDidDisappear : 1;
     unsigned int shouldManualForwardAppearanceMethods : 1;
 } MagicFlags;
 
@@ -40,15 +40,16 @@ static const void *kVTMagicView = &kVTMagicView;
 
 @interface VTMagicView()<UIScrollViewDelegate,VTContentViewDataSource,VTMenuBarDatasource,VTMenuBarDelegate>
 
+@property (nonatomic, strong) UIView *reviseView; // 避免系统自动调整contentView的inset
 @property (nonatomic, strong) VTMenuBar *menuBar; // 顶部导航菜单视图
 @property (nonatomic, strong) VTContentView *contentView; // 容器视图
 @property (nonatomic, strong) UIView *sliderView; // 顶部导航栏滑块
-@property (nonatomic, strong) UIView *separatorLine; // 导航模块底部分割线
+@property (nonatomic, strong) UIView *separatorView; // 导航模块底部分割线
 @property (nonatomic, strong) NSArray *menuTitles; // 顶部分类名数组
 @property (nonatomic, assign) NSInteger nextPageIndex; // 下一个页面的索引
 @property (nonatomic, assign) NSInteger currentPage; //当前页面的索引
 @property (nonatomic, assign) NSInteger previousIndex; // 上一个页面的索引
-@property (nonatomic, assign) BOOL isViewWillAppeare;
+@property (nonatomic, assign) BOOL isViewWillAppear;
 @property (nonatomic, assign) BOOL needSkipUpdate; // 是否是跳页切换
 @property (nonatomic, assign) MagicFlags magicFlags;
 @property (nonatomic, assign) VTColor normalVTColor;
@@ -61,26 +62,17 @@ static const void *kVTMagicView = &kVTMagicView;
 
 @implementation VTMagicView
 @synthesize navigationView = _navigationView;
+@synthesize separatorView = _separatorView;
 @synthesize headerView = _headerView;
+@synthesize sliderView = _sliderView;
 
-#pragma mark - lifecycle
+#pragma mark - Lifecycle
 - (instancetype)initWithFrame:(CGRect)frame
 {
     self = [super initWithFrame:frame];
     if (self) {
-        _itemScale = 1.0;
-        _previewItems = 1;
-        _sliderHeight = 2;
-        _headerHeight = 64;
-        _bubbleRadius = 10;
-        _separatorHeight = 0.5;
-        _navigationHeight = 44;
-        _headerHidden = YES;
-        _scrollEnabled = YES;
-        _switchEnabled = YES;
-        _switchAnimated = YES;
-        _menuScrollEnabled = YES;
         [self addMagicSubviews];
+        [self configDefaultValues];
         [self addNotification];
     }
     return self;
@@ -88,12 +80,30 @@ static const void *kVTMagicView = &kVTMagicView;
 
 - (void)addMagicSubviews
 {
-    [self addSubview:self.headerView];
+    [self addSubview:self.reviseView];
+    [self addSubview:self.contentView];
     [self addSubview:self.navigationView];
-    [_navigationView addSubview:self.separatorLine];
+    [self addSubview:self.headerView];
+    [_navigationView addSubview:self.separatorView];
     [_navigationView addSubview:self.menuBar];
     [_menuBar addSubview:self.sliderView];
-    [self addSubview:self.contentView];
+}
+
+- (void)configDefaultValues
+{
+    _itemScale = 1.0;
+    _previewItems = 1;
+    _sliderHeight = 2;
+    _headerHeight = 64;
+    _bubbleRadius = 10;
+    _separatorHeight = 0.5;
+    _navigationHeight = 44;
+    _headerHidden = YES;
+    _scrollEnabled = YES;
+    _switchEnabled = YES;
+    _needPreloading = YES;
+    _switchAnimated = YES;
+    _menuScrollEnabled = YES;
 }
 
 - (void)dealloc
@@ -124,7 +134,7 @@ static const void *kVTMagicView = &kVTMagicView;
     _navigationView.frame = CGRectMake(0, navigationY, size.width, navigationH);
     
     CGFloat separatorY = CGRectGetHeight(_navigationView.frame) - _separatorHeight;
-    _separatorLine.frame = CGRectMake(0, separatorY, size.width, _separatorHeight);
+    _separatorView.frame = CGRectMake(0, separatorY, size.width, _separatorHeight);
     
     CGRect originalMenuFrame = _menuBar.frame;
     CGFloat menuBarY = _headerHidden ? topY : 0;
@@ -143,7 +153,7 @@ static const void *kVTMagicView = &kVTMagicView;
     self.needSkipUpdate = YES;
     CGRect originalContentFrame = _contentView.frame;
     CGFloat contentY = CGRectGetMaxY(_navigationView.frame);
-    CGFloat contentH = size.height - contentY + (_needExtendedBottom ? VTTABBAR_HEIGHT : 0);
+    CGFloat contentH = size.height - contentY + (_needExtendBottom ? VTTABBAR_HEIGHT : 0);
     _contentView.frame = CGRectMake(0, contentY, size.width, contentH);
     if (!CGRectEqualToRect(_contentView.frame, originalContentFrame)) {
         [_contentView resetPageFrames];
@@ -191,6 +201,7 @@ static const void *kVTMagicView = &kVTMagicView;
 - (void)statusBarOrientationChange:(NSNotification *)notification
 {
     self.needSkipUpdate = YES;
+    _menuBar.needSkipLayout = NO;
     [self updateFrameForSubviews];
     [self updateMenuBarState];
     self.needSkipUpdate = NO;
@@ -206,12 +217,12 @@ static const void *kVTMagicView = &kVTMagicView;
     });
 }
 
-#pragma mark - funcational methods
+#pragma mark - functional methods
 - (void)reloadData
 {
     UIViewController *viewController = [self viewControllerAtPage:_currentPage];
-    if (viewController && _magicFlags.viewControllerDidDisappeare) {
-        [_delegate magicView:self viewDidDisappeare:viewController atPage:_currentPage];
+    if (viewController && _magicFlags.viewControllerDidDisappear) {
+        [_delegate magicView:self viewDidDisappear:viewController atPage:_currentPage];
     }
     [self viewControllerWillDisappear:_currentPage];
     [self viewControllerDidDisappear:_currentPage];
@@ -219,6 +230,8 @@ static const void *kVTMagicView = &kVTMagicView;
     if (_magicFlags.dataSourceMenuTitles) {
         _menuTitles = [_dataSource menuTitlesForMagicView:self];
         _menuBar.menuTitles = _menuTitles;
+        __unused NSString *title = [_menuTitles firstObject];
+        NSAssert(!title || [title isKindOfClass:[NSString class]], @"The class of menu title must be NSString");
     }
     
     BOOL needReset = _menuTitles.count <= _currentPage;
@@ -241,6 +254,26 @@ static const void *kVTMagicView = &kVTMagicView;
     [self layoutIfNeeded];
 }
 
+- (void)reloadDataToPage:(NSUInteger)page
+{
+    _currentPage = page;
+    _menuBar.currentIndex = page;
+    _contentView.currentPage = page;
+    [self reloadData];
+}
+
+- (void)reloadMenuTitles
+{
+    if (_magicFlags.dataSourceMenuTitles) {
+        _menuTitles = [_dataSource menuTitlesForMagicView:self];
+        _menuBar.menuTitles = _menuTitles;
+    }
+    [_menuBar reloadData];
+    if (!_contentView.isDragging) {
+        [self updateMenuBarState];
+    }
+}
+
 - (UIButton *)dequeueReusableItemWithIdentifier:(NSString *)identifier
 {
     UIButton *menuItem = [_menuBar dequeueReusableItemWithIdentifier:identifier];
@@ -257,6 +290,11 @@ static const void *kVTMagicView = &kVTMagicView;
     return viewController;
 }
 
+- (NSInteger)pageIndexForViewController:(UIViewController *)viewController
+{
+    return [_contentView pageIndexForViewController:viewController];
+}
+
 - (UIViewController *)viewControllerAtPage:(NSUInteger)pageIndex
 {
     return [_contentView viewControllerAtPage:pageIndex];
@@ -265,18 +303,6 @@ static const void *kVTMagicView = &kVTMagicView;
 - (UIButton *)menuItemAtIndex:(NSUInteger)index
 {
     return [_menuBar itemAtIndex:index];
-}
-
-- (void)updateMenuTitles
-{
-    if (_magicFlags.dataSourceMenuTitles) {
-        _menuTitles = [_dataSource menuTitlesForMagicView:self];
-        _menuBar.menuTitles = _menuTitles;
-    }
-    [_menuBar reloadData];
-    if (!_contentView.isDragging) {
-        [self updateMenuBarState];
-    }
 }
 
 - (void)deselectMenuItem
@@ -289,13 +315,18 @@ static const void *kVTMagicView = &kVTMagicView;
     [_menuBar reselectMenuItem];
 }
 
+- (void)clearMemoryCache
+{
+    [_contentView clearMemoryCache];
+}
+
 #pragma mark - switch to specified page
 - (void)switchToPage:(NSUInteger)pageIndex animated:(BOOL)animated
 {
     if (pageIndex == _currentPage || _menuTitles.count <= pageIndex) return;
     _contentView.currentPage = pageIndex;
     _switchEvent = VTSwitchEventScroll;
-    if (animated) {
+    if (animated && _needPreloading) {
         [self switchAnimation:pageIndex];
     } else {
         [self switchWithoutAnimation:pageIndex];
@@ -307,11 +338,18 @@ static const void *kVTMagicView = &kVTMagicView;
     if (_menuTitles.count <= pageIndex) return;
     [_contentView creatViewControllerAtPage:_currentPage];
     [_contentView creatViewControllerAtPage:pageIndex];
-    [self subviewWillAppeareAtPage:pageIndex];
+    [self subviewWillAppearAtPage:pageIndex];
+    self.needSkipUpdate = YES;
     CGFloat offset = _contentView.frame.size.width * pageIndex;
     _contentView.contentOffset = CGPointMake(offset, 0);
+    self.needSkipUpdate = NO;
+    
+    [self displayPageHasChanged:pageIndex disIndex:_currentPage];
+    [self viewControllerDidDisappear:_currentPage];
+    [self viewControllerDidAppear:pageIndex];
+    _currentPage = pageIndex;
     _menuBar.currentIndex = pageIndex;
-    [self updateMenuBarState];
+    [self updateMenuBarWhenSwitchEnd];
 }
 
 - (void)switchAnimation:(NSUInteger)pageIndex
@@ -322,14 +360,14 @@ static const void *kVTMagicView = &kVTMagicView;
     BOOL isNotAdjacent = abs((int)(_currentPage - pageIndex)) > 1;
     if (isNotAdjacent) {// 当前按钮与选中按钮不相邻时
         self.needSkipUpdate = YES;
-        _isViewWillAppeare = YES;
+        _isViewWillAppear = YES;
         [self displayPageHasChanged:pageIndex disIndex:_currentPage];
-        [self subviewWillAppeareAtPage:pageIndex];
+        [self subviewWillAppearAtPage:pageIndex];
         [self viewControllerDidDisappear:disIndex];
         [_magicController setCurrentViewController:nil];
         NSInteger tempIndex = pageIndex + (_currentPage < pageIndex ? -1 : 1);
         _contentView.contentOffset = CGPointMake(contentWidth * tempIndex, 0);
-        _isViewWillAppeare = NO;
+        _isViewWillAppear = NO;
     } else {
         [self viewControllerWillDisappear:disIndex];
         [self viewControllerWillAppear:pageIndex];
@@ -450,6 +488,7 @@ static VTPanRecognizerDirection direction = VTPanRecognizerDirectionUndefined;
     CGPoint velocity = [recognizer velocityInView:recognizer.view];
     BOOL isHorizontalGesture = fabs(velocity.y) < fabs(velocity.x);
     if (isHorizontalGesture) {
+        _switchEvent = VTSwitchEventScroll;
         direction = VTPanRecognizerDirectionHorizontal;
         [self handlePanGestureMove:recognizer];
     } else {
@@ -510,25 +549,29 @@ static VTPanRecognizerDirection direction = VTPanRecognizerDirectionUndefined;
     [_contentView setContentOffset:CGPointMake(contentWidth * index, 0) animated:YES];
 }
 
-#pragma mark - 当前页面控制器改变时触发，传递disappearViewController & appearViewController
+#pragma mark - display page has changed
 - (void)displayPageHasChanged:(NSInteger)pageIndex disIndex:(NSInteger)disIndex
 {
-    _menuBar.currentIndex = pageIndex;
-    UIViewController *appearViewController = [_contentView viewControllerAtPage:pageIndex autoCreate:!_needSkipUpdate];
-    UIViewController *disappearViewController = [_contentView viewControllerAtPage:disIndex autoCreate:!_needSkipUpdate];
+    UIViewController *appearViewController = [self autoCreateViewControllAtPage:pageIndex];
+    UIViewController *disappearViewController = [self autoCreateViewControllAtPage:disIndex];
     
     if (appearViewController) {
         [_magicController setCurrentPage:pageIndex];
         [_magicController setCurrentViewController:appearViewController];
     }
     
-    if (disappearViewController && _magicFlags.viewControllerDidDisappeare) {
-        [_delegate magicView:self viewDidDisappeare:disappearViewController atPage:disIndex];
+    if (disappearViewController && _magicFlags.viewControllerDidDisappear) {
+        [_delegate magicView:self viewDidDisappear:disappearViewController atPage:disIndex];
     }
     
-    if (appearViewController && _magicFlags.viewControllerDidAppeare) {
-        [_delegate magicView:self viewDidAppeare:appearViewController atPage:pageIndex];
+    if (appearViewController && _magicFlags.viewControllerDidAppear) {
+        [_delegate magicView:self viewDidAppear:appearViewController atPage:pageIndex];
     }
+}
+
+- (UIViewController *)autoCreateViewControllAtPage:(NSInteger)pageIndex
+{
+    return [_contentView viewControllerAtPage:pageIndex autoCreate:!_needSkipUpdate];
 }
 
 #pragma mark - change color
@@ -597,7 +640,7 @@ static VTPanRecognizerDirection direction = VTPanRecognizerDirectionUndefined;
     if (itemIndex == _menuBar.currentIndex) return;
     [self resetMenuItemColor];
     _switchEvent = VTSwitchEventClick;
-    if (_switchAnimated) {
+    if (_switchAnimated && _needPreloading) {
         [self switchAnimation:itemIndex];
     } else {
         [self switchWithoutAnimation:itemIndex];
@@ -613,13 +656,14 @@ static VTPanRecognizerDirection direction = VTPanRecognizerDirectionUndefined;
         [_magicController addChildViewController:viewController];
         [contentView addSubview:viewController.view];
         [viewController didMoveToParentViewController:_magicController];
-        // 设置默认的currentViewController，并触发viewDidAppeare
+        // 设置默认的currentViewController，并触发viewDidAppear
         if (pageIndex == _currentPage && VTSwitchEventLoad == _switchEvent) {
+            [_magicController setCurrentPage:_currentPage];
             [_magicController setCurrentViewController:viewController];
-            if (_magicFlags.viewControllerDidAppeare) {
-                [_delegate magicView:self viewDidAppeare:viewController atPage:_currentPage];
+            if (_magicFlags.viewControllerDidAppear) {
+                [_delegate magicView:self viewDidAppear:viewController atPage:_currentPage];
             }
-            if (_magicFlags.shouldManualForwardAppearanceMethods) {
+            if ([self shouldForwardAppearanceMethods]) {
                 [viewController beginAppearanceTransition:YES animated:YES];
                 [viewController endAppearanceTransition];
             }
@@ -635,8 +679,9 @@ static VTPanRecognizerDirection direction = VTPanRecognizerDirectionUndefined;
         _contentView.scrollEnabled = NO;
     } else if (_contentView.isTracking) {
         _menuBar.needSkipLayout = 1.0 != _itemScale;
+        _switchEvent = VTSwitchEventScroll;
         _menuBar.scrollEnabled = NO;
-        _isViewWillAppeare = NO;
+        _isViewWillAppear = NO;
     }
 }
 
@@ -658,11 +703,10 @@ static VTPanRecognizerDirection direction = VTPanRecognizerDirectionUndefined;
     }
     
     if (!_needSkipUpdate && newIndex != _currentPage) {
-        _switchEvent = VTSwitchEventScroll;
         self.currentPage = newIndex;
         switch (_switchStyle) {
             case VTSwitchStyleStiff:
-                [self updateMenuBarWhenUserScrolled];
+                [self updateMenuBarWhenSwitchEnd];
                 break;
             default:
                 [self updateItemStateForDefaultStyle];
@@ -670,15 +714,16 @@ static VTPanRecognizerDirection direction = VTPanRecognizerDirectionUndefined;
         }
     }
     
-    if (_nextPageIndex != tempIndex) _isViewWillAppeare = NO;
-    if (!_isViewWillAppeare && newIndex != tempIndex) {
-        _isViewWillAppeare = YES;
+    if (_nextPageIndex != tempIndex) _isViewWillAppear = NO;
+    if (!_isViewWillAppear && newIndex != tempIndex) {
+        _isViewWillAppear = YES;
         NSInteger nextPageIndex = newIndex + (isSwipeToLeft ? 1 : -1);
-        [self subviewWillAppeareAtPage:nextPageIndex];
+        [self subviewWillAppearAtPage:nextPageIndex];
     }
     
     if (tempIndex == _currentPage) { // 重置_nextPageIndex
-        if (_nextPageIndex != _currentPage) {
+        if (_nextPageIndex != _currentPage &&
+            VTSwitchEventScroll == _switchEvent) {
             [self viewControllerWillDisappear:_nextPageIndex];
             [self viewControllerWillAppear:_currentPage];
             [self viewControllerDidDisappear:_nextPageIndex];
@@ -711,11 +756,11 @@ static VTPanRecognizerDirection direction = VTPanRecognizerDirectionUndefined;
     }
     if (VTSwitchStyleDefault == _switchStyle) {
         if (_isPanValid) return;
-        [self updateMenuBarWhenUserScrolled];
+        [self updateMenuBarWhenSwitchEnd];
     }
 }
 
-- (void)updateMenuBarWhenUserScrolled
+- (void)updateMenuBarWhenSwitchEnd
 {
     _menuBar.needSkipLayout = NO;
     [UIView animateWithDuration:0.25 animations:^{
@@ -734,7 +779,7 @@ static VTPanRecognizerDirection direction = VTPanRecognizerDirectionUndefined;
 }
 
 #pragma mark - 视图即将显示
-- (void)subviewWillAppeareAtPage:(NSInteger)pageIndex
+- (void)subviewWillAppearAtPage:(NSInteger)pageIndex
 {
     if (_nextPageIndex == pageIndex) return;
     if (_contentView.isDragging && 1 < ABS(_nextPageIndex - pageIndex)) {
@@ -777,7 +822,8 @@ static VTPanRecognizerDirection direction = VTPanRecognizerDirectionUndefined;
 
 - (BOOL)shouldForwardAppearanceMethods
 {
-    return _magicFlags.shouldManualForwardAppearanceMethods;// && [_magicController magicHasAppeared];
+    return _magicFlags.shouldManualForwardAppearanceMethods &&
+      VTAppearanceStateDidAppear == _magicController.appearanceState;
 }
 
 #pragma mark - accessor methods
@@ -804,14 +850,14 @@ static VTPanRecognizerDirection direction = VTPanRecognizerDirectionUndefined;
     return _navigationView;
 }
 
-- (UIView *)separatorLine
+- (UIView *)separatorView
 {
-    if (!_separatorLine) {
-        _separatorLine = [[UIView alloc] init];
-        _separatorLine.backgroundColor = RGBCOLOR(188, 188, 188);
-        _separatorLine.autoresizingMask = UIViewAutoresizingFlexibleWidth;
+    if (!_separatorView) {
+        _separatorView = [[UIView alloc] init];
+        _separatorView.backgroundColor = RGBCOLOR(188, 188, 188);
+        _separatorView.autoresizingMask = UIViewAutoresizingFlexibleWidth;
     }
-    return _separatorLine;
+    return _separatorView;
 }
 
 - (UIView *)sliderView
@@ -821,6 +867,21 @@ static VTPanRecognizerDirection direction = VTPanRecognizerDirectionUndefined;
         _sliderView.backgroundColor = RGBCOLOR(194, 39, 39);
     }
     return _sliderView;
+}
+
+- (void)setSliderView:(UIView *)sliderView
+{
+    [_sliderView removeFromSuperview];
+    _sliderView = sliderView;
+    [_menuBar addSubview:sliderView];
+}
+
+- (void)setSeparatorView:(UIView *)separatorView
+{
+    [_separatorView removeFromSuperview];
+    _separatorView = separatorView;
+    [_navigationView addSubview:separatorView];
+    [_navigationView bringSubviewToFront:_menuBar];
 }
 
 - (VTMenuBar *)menuBar
@@ -845,19 +906,27 @@ static VTPanRecognizerDirection direction = VTPanRecognizerDirectionUndefined;
         _contentView.showsVerticalScrollIndicator = NO;
         _contentView.showsHorizontalScrollIndicator = NO;
         _contentView.pagingEnabled = YES;
-        _contentView.delegate = self;
-        _contentView.dataSource = self;
         _contentView.scrollsToTop = NO;
+        _contentView.dataSource = self;
+        _contentView.delegate = self;
         _contentView.bounces = NO;
     }
     return _contentView;
+}
+
+- (UIView *)reviseView
+{
+    if (!_reviseView) {
+        _reviseView = [[UIView alloc] init];
+    }
+    return _reviseView;
 }
 
 - (void)setLeftNavigatoinItem:(UIView *)leftNavigatoinItem
 {
     _leftNavigatoinItem = leftNavigatoinItem;
     [_navigationView addSubview:leftNavigatoinItem];
-    [_navigationView bringSubviewToFront:_separatorLine];
+    [_navigationView bringSubviewToFront:_separatorView];
     [_navigationView bringSubviewToFront:_menuBar];
     leftNavigatoinItem.autoresizingMask = UIViewAutoresizingFlexibleRightMargin;
     [self updateFrameForLeftNavigationItem];
@@ -867,7 +936,7 @@ static VTPanRecognizerDirection direction = VTPanRecognizerDirectionUndefined;
 {
     _rightNavigatoinItem = rightNavigatoinItem;
     [_navigationView addSubview:rightNavigatoinItem];
-    [_navigationView bringSubviewToFront:_separatorLine];
+    [_navigationView bringSubviewToFront:_separatorView];
     [_navigationView bringSubviewToFront:_menuBar];
     rightNavigatoinItem.autoresizingMask = UIViewAutoresizingFlexibleLeftMargin;
     [self updateFrameForRightNavigationItem];
@@ -890,8 +959,8 @@ static VTPanRecognizerDirection direction = VTPanRecognizerDirectionUndefined;
 - (void)setDelegate:(id<VTMagicViewDelegate>)delegate
 {
     _delegate = delegate;
-    _magicFlags.viewControllerDidAppeare = [delegate respondsToSelector:@selector(magicView:viewDidAppeare:atPage:)];
-    _magicFlags.viewControllerDidDisappeare = [delegate respondsToSelector:@selector(magicView:viewDidDisappeare:atPage:)];
+    _magicFlags.viewControllerDidAppear = [delegate respondsToSelector:@selector(magicView:viewDidAppear:atPage:)];
+    _magicFlags.viewControllerDidDisappear = [delegate respondsToSelector:@selector(magicView:viewDidDisappear:atPage:)];
     if (!_magicController && [_delegate isKindOfClass:[UIViewController class]] && [delegate conformsToProtocol:@protocol(VTMagicProtocol)]) {
         self.magicController = (UIViewController<VTMagicProtocol> *)delegate;
     }
@@ -927,7 +996,9 @@ static VTPanRecognizerDirection direction = VTPanRecognizerDirectionUndefined;
     NSInteger disIndex = _currentPage;
     _currentPage = currentPage;
     _previousIndex = disIndex;
+    _menuBar.currentIndex = currentPage;
     
+    if (VTSwitchEventScroll != _switchEvent) return;
     [self displayPageHasChanged:currentPage disIndex:disIndex];
     [self viewControllerDidDisappear:disIndex];
     [self viewControllerDidAppear:currentPage];
@@ -962,7 +1033,13 @@ static VTPanRecognizerDirection direction = VTPanRecognizerDirectionUndefined;
 - (void)setSeparatorHidden:(BOOL)separatorHidden
 {
     _separatorHidden = separatorHidden;
-    _separatorLine.hidden = separatorHidden;
+    _separatorView.hidden = separatorHidden;
+}
+
+- (void)setNeedPreloading:(BOOL)needPreloading
+{
+    _needPreloading = needPreloading;
+    _contentView.needPreloading = needPreloading;
 }
 
 - (void)setBounces:(BOOL)bounces
@@ -971,9 +1048,9 @@ static VTPanRecognizerDirection direction = VTPanRecognizerDirectionUndefined;
     _contentView.bounces = bounces;
 }
 
-- (void)setNeedExtendedBottom:(BOOL)needExtendedBottom
+- (void)setNeedExtendBottom:(BOOL)needExtendBottom
 {
-    _needExtendedBottom = needExtendedBottom;
+    _needExtendBottom = needExtendBottom;
     [self updateFrameForSubviews];
 }
 
@@ -1022,13 +1099,19 @@ static VTPanRecognizerDirection direction = VTPanRecognizerDirectionUndefined;
 - (void)setSeparatorColor:(UIColor *)separatorColor
 {
     _separatorColor = separatorColor;
-    _separatorLine.backgroundColor = separatorColor;
+    _separatorView.backgroundColor = separatorColor;
 }
 
 - (void)setSliderColor:(UIColor *)sliderColor
 {
     _sliderColor = sliderColor;
     _sliderView.backgroundColor = sliderColor;
+}
+
+- (void)setSliderHeight:(CGFloat)sliderHeight
+{
+    _sliderHeight = sliderHeight;
+    _menuBar.sliderHeight = sliderHeight;
 }
 
 - (void)setSliderWidth:(CGFloat)sliderWidth

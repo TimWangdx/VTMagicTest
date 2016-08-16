@@ -22,11 +22,12 @@
 
 @implementation VTContentView
 
-#pragma mark -lifecycle
+#pragma mark - Lifecycle
 - (instancetype)initWithFrame:(CGRect)frame
 {
     self = [super initWithFrame:frame];
     if (self) {
+        _needPreloading = YES;
         _indexList = [[NSMutableArray alloc] init];
         _frameList = [[NSMutableArray alloc] init];
         _visibleDict = [[NSMutableDictionary alloc] init];
@@ -68,7 +69,7 @@
         frame = [_frameList[indexPath.row] CGRectValue];
         viewController = _visibleDict[indexPath];
         // 控制器若移出屏幕则将其视图从父类中移除，并添加到缓存池中
-        if (![self vtm_isNeedDisplayWithFrame:frame]) {
+        if (![self vtm_isNeedDisplayWithFrame:frame preloading:_needPreloading]) {
             [self moveViewControllerToCache:viewController];
             [_visibleDict removeObjectForKey:indexPath];
         } else {
@@ -80,7 +81,7 @@
     [tempPaths removeObjectsInArray:pathList];
     for (NSIndexPath *indexPath in tempPaths) {
         frame = [_frameList[indexPath.row] CGRectValue];
-        if ([self vtm_isNeedDisplayWithFrame:frame]) {
+        if ([self vtm_isNeedDisplayWithFrame:frame preloading:_needPreloading]) {
             [self loadViewControllerAtIndexPath:indexPath];
         }
     }
@@ -114,8 +115,8 @@
 - (void)moveViewControllerToCache:(UIViewController *)viewController
 {
     [viewController willMoveToParentViewController:nil];
-    [viewController removeFromParentViewController];
     [viewController.view removeFromSuperview];
+    [viewController removeFromParentViewController];
     
     // 添加到缓存池
     NSMutableSet *cacheSet = [_pageCache objectForKey:viewController.reuseIdentifier];
@@ -134,6 +135,17 @@
     }
     self.contentSize = CGSizeMake(CGRectGetMaxX(frame), 0);
     self.contentOffset = CGPointMake(CGRectGetWidth(frame)*_currentPage, 0);
+}
+
+#pragma mark - 根据页面控制器获取对应的索引
+- (NSInteger)pageIndexForViewController:(UIViewController *)viewController
+{
+    for (NSIndexPath *indexPath in _visibleDict.allKeys) {
+        if ([viewController isEqual:_visibleDict[indexPath]]) {
+            return indexPath.row;
+        }
+    }
+    return NSNotFound;
 }
 
 #pragma mark - 根据索引获取页面控制器
